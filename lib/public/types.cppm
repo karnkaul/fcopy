@@ -5,6 +5,8 @@ export import std;
 export namespace fcopy {
 namespace fs = std::filesystem;
 
+enum struct ExitCode : std::int8_t { Success = 0 };
+
 enum class ErrorType : std::int8_t {
 	Unknown = 100,
 	InvalidArgument,
@@ -14,6 +16,7 @@ enum class ErrorType : std::int8_t {
 	FileIOFailure,
 };
 [[nodiscard]] auto to_string_view(ErrorType error_type) -> std::string_view;
+[[nodiscard]] constexpr auto to_exit_code(ErrorType const error_type) { return static_cast<ExitCode>(error_type); }
 
 enum class EntryType : std::int8_t {
 	Unknown,

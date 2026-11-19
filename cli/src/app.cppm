@@ -45,23 +45,9 @@ class App {
 		return parser.parse_main(argc, argv);
 	}
 
-	[[nodiscard]] auto execute() -> int {
-		auto source = to_entry(m_params.source);
-		if (!source) {
-			return handle_error(source.error());
-		}
-
-		auto destination = fs::path(m_params.destination);
-
-		m_copier.file_copier.options = m_params.options;
-		m_copier.recursive = m_params.recursive;
-
-		auto const result = m_copier.copy_path(std::move(*source), destination);
-		if (!result) {
-			return handle_error(result.error());
-		}
-
-		return 0;
+	[[nodiscard]] auto execute() const -> int {
+		auto const ret = copy_path(m_params.source, m_params.destination, m_params.options);
+		return static_cast<int>(ret);
 	}
 
 	[[nodiscard]] static auto handle_error(Error const& error) -> int {
@@ -70,7 +56,5 @@ class App {
 	}
 
 	Params m_params{};
-
-	Copier m_copier{};
 };
 } // namespace fcopy::cli
