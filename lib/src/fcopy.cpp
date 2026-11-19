@@ -205,4 +205,31 @@ void FileCopier::set_completed() {
 		m_print_progress->print(m_progress, transfer_meter.get_rate());
 	}
 }
+
+auto Copier::copy_path(Entry source, fs::path destination, bool const overwrite) -> Result<void> {
+	if (recursive && source.type == EntryType::Directory) {
+		destination /= source.path.filename();
+
+		for (auto const& it : fs::recursive_directory_iterator{source.path}) {
+			auto entry = to_entry(it.path());
+			if (!entry || entry->type != EntryType::RegularFile) {
+				continue;
+			}
+
+			auto const filename = fs::relative(it.path(), source.path);
+			auto file_destination = destination / filename;
+			auto result = file_copier.copy_file(std::move(*entry), std::move(file_destination), overwrite);
+			if (!result) {
+				return std::unexpected{std::move(result.error())};
+			}
+		}
+		return {};
+	}
+
+	if (fs::is_directory(destination)) {
+		destination /= source.path.filename();
+	}
+
+	return file_copier.copy_file(std::move(source), std::move(destination), overwrite);
+}
 } // namespace fcopy

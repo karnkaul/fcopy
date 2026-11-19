@@ -66,4 +66,12 @@ class FileCopier {
 	CopyProgress m_progress{};
 	std::vector<char> m_buffer{};
 };
+
+class Copier {
+  public:
+	[[nodiscard]] auto copy_path(Entry source, fs::path destination, bool overwrite) -> Result<void>;
+
+	FileCopier file_copier{};
+	bool recursive{true};
+};
 } // namespace fcopy

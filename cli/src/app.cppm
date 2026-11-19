@@ -6,14 +6,6 @@ import clap;
 export namespace fcopy::cli {
 class App {
   public:
-	struct Params {
-		std::string_view source;
-
-		std::string_view destination{"."};
-		bool overwrite{false};
-		bool quiet{false};
-	};
-
 	[[nodiscard]] auto run(int argc, char const* const* argv) -> int {
 		auto const parse_result = parse_args(argc, argv);
 		if (parse_result.should_early_exit()) {
@@ -24,12 +16,22 @@ class App {
 	}
 
   private:
+	struct Params {
+		std::string_view source;
+
+		std::string_view destination{"."};
+		bool overwrite{false};
+		bool quiet{false};
+		bool recursive{false};
+	};
+
 	[[nodiscard]] auto parse_args(int argc, char const* const* argv) -> clap::Result {
 		auto spec = clap::spec::Parameters{
 			.parameters =
 				{
 					clap::named_flag(m_params.overwrite, "o,overwrite", "overwrite existing"),
 					clap::named_flag(m_params.quiet, "q,quiet", "only output errors"),
+					clap::named_flag(m_params.recursive, "r,recursive", "recurse all files in source"),
 					clap::positional_required(m_params.source, "SRC", "source"),
 					clap::positional_optional(m_params.destination, "DST", "destination (default=.)"),
 				},
@@ -51,12 +53,11 @@ class App {
 		}
 
 		auto destination = fs::path(m_params.destination);
-		if (fs::is_directory(destination)) {
-			destination /= fs::path{m_params.source}.filename();
-		}
 
-		m_file_copier.quiet = m_params.quiet;
-		auto const result = m_file_copier.copy_file(std::move(*source), destination, m_params.overwrite);
+		m_copier.file_copier.quiet = m_params.quiet;
+		m_copier.recursive = m_params.recursive;
+
+		auto const result = m_copier.copy_path(std::move(*source), destination, m_params.overwrite);
 		if (!result) {
 			return handle_error(result.error());
 		}
@@ -71,6 +72,6 @@ class App {
 
 	Params m_params{};
 
-	FileCopier m_file_copier{};
+	Copier m_copier{};
 };
 } // namespace fcopy::cli

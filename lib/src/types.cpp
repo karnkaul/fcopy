@@ -72,10 +72,6 @@ auto fcopy::to_entry(fs::path path) -> Result<Entry> {
 	}
 
 	auto const entry_type = to_entry_type(path);
-	if (entry_type == EntryType::Directory || entry_type == EntryType::Unknown) {
-		return to_error(Error::Type::InvalidArgument, std::format("Not a file: {}", path.generic_string()));
-	}
-
 	auto ret = Entry{.path = std::move(path), .type = entry_type};
 	if (ret.type == EntryType::RegularFile) {
 		ret.size = fs::file_size(ret.path);
