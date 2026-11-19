@@ -10,13 +10,29 @@ class ProgressPrinter {
   public:
 	explicit ProgressPrinter(fs::path const& path) : m_path(path.generic_string()) {}
 
-	void print(CopyProgress const& progress);
+	void print(CopyProgress const& progress, ByteCount const& transfer_rate);
 
-	void operator()(CopyProgress const& progress) { print(progress); }
+	void operator()(CopyProgress const& progress, ByteCount const& transfer_rate) { print(progress, transfer_rate); }
 
   private:
+	void clear_line();
+	void populate_line(CopyProgress const& progress, ByteCount const& transfer_rate);
+
 	std::string m_path{};
-	bool m_printed{};
+	std::string m_line{};
+};
+
+class TransferMeter {
+  public:
+	void update(std::uint64_t transferred);
+	[[nodiscard]] auto get_rate() const -> ByteCount;
+
+  private:
+	using Clock = std::chrono::steady_clock;
+
+	Clock::time_point m_previous{Clock::now()};
+	std::uint64_t m_transferred{};
+	ByteCount m_rate{};
 };
 
 class FileCopier {
@@ -24,6 +40,7 @@ class FileCopier {
 	[[nodiscard]] auto copy_file(Entry source, fs::path destination, bool overwrite) -> Result<void>;
 
 	std::size_t buffer_size{16 * 1024 * 1024uz};
+	std::shared_ptr<TransferMeter> transfer_meter{};
 
   private:
 	[[nodiscard]] auto copy_file() -> Result<void>;
@@ -33,6 +50,7 @@ class FileCopier {
 	[[nodiscard]] auto open_destination() -> Result<void>;
 	[[nodiscard]] auto copy_bytes() -> Result<void>;
 	void overwrite_permissions() const;
+	void set_completed();
 
 	void print_progress() const;
 
