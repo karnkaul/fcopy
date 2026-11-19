@@ -228,4 +228,22 @@ auto Copier::copy_path(Entry source, fs::path destination) -> Result<void> {
 
 	return file_copier.copy_file(std::move(source), std::move(destination));
 }
+
+auto Copier::copy_directory(fs::path const& source, fs::path const& destination) -> Result<void> {
+	auto const destination_root = destination / source.filename();
+	for (auto const& it : fs::recursive_directory_iterator{source}) {
+		auto entry = to_entry(it.path());
+		if (!entry || entry->type != EntryType::RegularFile) {
+			continue;
+		}
+
+		auto const filename = fs::relative(it.path(), source);
+		auto file_destination = destination_root / filename;
+		auto result = file_copier.copy_file(std::move(*entry), std::move(file_destination));
+		if (!result) {
+			return std::unexpected{std::move(result.error())};
+		}
+	}
+	return {};
+}
 } // namespace fcopy

@@ -73,5 +73,8 @@ class Copier {
 
 	FileCopier file_copier{};
 	bool recursive{true};
+
+  private:
+	[[nodiscard]] auto copy_directory(fs::path const& source, fs::path const& destination) -> Result<void>;
 };
 } // namespace fcopy

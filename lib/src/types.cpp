@@ -3,14 +3,14 @@ module fcopy.types;
 namespace fcopy {
 namespace {
 [[nodiscard]] auto to_entry_type(fs::path const& path) {
+	if (fs::is_symlink(path)) {
+		return EntryType::Symlink;
+	}
 	if (fs::is_directory(path)) {
 		return EntryType::Directory;
 	}
 	if (fs::is_regular_file(path)) {
 		return EntryType::RegularFile;
-	}
-	if (fs::is_symlink(path)) {
-		return EntryType::Symlink;
 	}
 	return EntryType::Unknown;
 }
