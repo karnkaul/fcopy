@@ -1,0 +1,8 @@
+{
+  "packages": [
+    {
+      "uri": "karnkaul/clap",
+      "branch": "feature/modules"
+    }
+  ]
+}
