@@ -8,6 +8,8 @@ export import std;
 export namespace fcopy {
 class ProgressPrinter {
   public:
+	ProgressPrinter() = default;
+
 	explicit ProgressPrinter(fs::path const& path) : m_path(path.generic_string()) {}
 
 	void print(CopyProgress const& progress, ByteCount const& transfer_rate);
@@ -40,22 +42,23 @@ class FileCopier {
 	[[nodiscard]] auto copy_file(Entry source, fs::path destination, bool overwrite) -> Result<void>;
 
 	std::size_t buffer_size{16 * 1024 * 1024uz};
-	TransferMeter transfer_meter{};
 	bool quiet{};
 
   private:
+	struct Progress {
+		CopyProgress progress{};
+		ProgressPrinter printer{};
+	};
+
 	[[nodiscard]] auto copy_file() -> Result<void>;
 	[[nodiscard]] auto create_empty_file() -> Result<void>;
 	[[nodiscard]] auto copy_one_shot() -> Result<void>;
 	[[nodiscard]] auto open_source() -> Result<void>;
 	[[nodiscard]] auto open_destination() -> Result<void>;
 	[[nodiscard]] auto copy_bytes() -> Result<void>;
-	void overwrite_permissions() const;
 	void set_completed();
 
 	void print_progress() const;
-
-	std::optional<ProgressPrinter> m_print_progress{};
 
 	Entry m_source{};
 	fs::path m_destination{};
@@ -63,7 +66,8 @@ class FileCopier {
 	std::ifstream m_in{};
 	std::ofstream m_out{};
 
-	CopyProgress m_progress{};
+	std::optional<Progress> m_progress{};
+	TransferMeter m_transfer{};
 	std::vector<char> m_buffer{};
 };
 
