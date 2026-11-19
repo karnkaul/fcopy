@@ -41,6 +41,7 @@ class FileCopier {
 
 	std::size_t buffer_size{16 * 1024 * 1024uz};
 	std::shared_ptr<TransferMeter> transfer_meter{};
+	bool quiet{};
 
   private:
 	[[nodiscard]] auto copy_file() -> Result<void>;

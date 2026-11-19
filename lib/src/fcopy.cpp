@@ -101,10 +101,12 @@ auto FileCopier::copy_file(Entry source, fs::path destination, bool const overwr
 	m_source = std::move(source);
 	m_destination = std::move(destination);
 	m_progress = CopyProgress{.total = m_source.size};
-	m_print_progress = ProgressPrinter{m_destination};
+	if (!quiet) {
+		m_print_progress = ProgressPrinter{m_destination};
 
-	if (!transfer_meter) {
-		transfer_meter = std::make_shared<TransferMeter>();
+		if (!transfer_meter) {
+			transfer_meter = std::make_shared<TransferMeter>();
+		}
 	}
 
 	return copy_file();
@@ -145,7 +147,9 @@ auto FileCopier::copy_one_shot() -> Result<void> {
 		return to_error(Error::Type::FileIOFailure, m_destination.generic_string());
 	}
 
-	transfer_meter->update(m_source.size);
+	if (transfer_meter) {
+		transfer_meter->update(m_source.size);
+	}
 	set_completed();
 
 	return {};
@@ -167,7 +171,10 @@ auto FileCopier::copy_bytes() -> Result<void> {
 	m_buffer.clear();
 	m_buffer.resize(buffer_size);
 
-	m_print_progress->print(m_progress, transfer_meter->get_rate());
+	if (!quiet) {
+		m_print_progress->print(m_progress, transfer_meter->get_rate());
+	}
+
 	for (auto remain = m_source.size; remain > 0;) {
 		auto const request_size = std::min(m_buffer.size(), remain);
 		if (!m_in.read(m_buffer.data(), static_cast<std::streamsize>(request_size))) {
@@ -179,8 +186,11 @@ auto FileCopier::copy_bytes() -> Result<void> {
 
 		remain -= request_size;
 		m_progress.synchronized += request_size;
-		transfer_meter->update(request_size);
-		m_print_progress->print(m_progress, transfer_meter->get_rate());
+
+		if (!quiet) {
+			transfer_meter->update(request_size);
+			m_print_progress->print(m_progress, transfer_meter->get_rate());
+		}
 	}
 
 	overwrite_permissions();
@@ -195,6 +205,8 @@ void FileCopier::overwrite_permissions() const {
 void FileCopier::set_completed() {
 	overwrite_permissions();
 	m_progress.synchronized = m_progress.total;
-	m_print_progress->print(m_progress, transfer_meter->get_rate());
+	if (!quiet) {
+		m_print_progress->print(m_progress, transfer_meter->get_rate());
+	}
 }
 } // namespace fcopy

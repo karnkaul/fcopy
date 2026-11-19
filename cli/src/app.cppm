@@ -11,6 +11,7 @@ class App {
 
 		std::string_view destination{"."};
 		bool overwrite{false};
+		bool quiet{false};
 	};
 
 	[[nodiscard]] auto run(int argc, char const* const* argv) -> int {
@@ -28,6 +29,7 @@ class App {
 			.parameters =
 				{
 					clap::named_flag(m_params.overwrite, "o,overwrite", "overwrite existing"),
+					clap::named_flag(m_params.quiet, "q,quiet", "only output errors"),
 					clap::positional_required(m_params.source, "SRC", "source"),
 					clap::positional_optional(m_params.destination, "DST", "destination (default=.)"),
 				},
@@ -53,6 +55,7 @@ class App {
 			destination /= fs::path{m_params.source}.filename();
 		}
 
+		m_file_copier.quiet = m_params.quiet;
 		auto const result = m_file_copier.copy_file(std::move(*source), destination, m_params.overwrite);
 		if (!result) {
 			return handle_error(result.error());
