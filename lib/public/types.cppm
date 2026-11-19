@@ -41,7 +41,17 @@ struct Entry {
 	std::uint64_t size{};
 };
 
-struct CopyProgress {
+struct Options {
+	bool overwrite{false};
+	bool quiet{false};
+};
+
+struct ByteCount {
+	float size{};
+	std::string_view unit{};
+};
+
+struct Progress {
 	[[nodiscard]] constexpr auto to_percent() const -> int {
 		if (total == 0) {
 			return 0;
@@ -51,11 +61,8 @@ struct CopyProgress {
 
 	std::uint64_t total{};
 	std::uint64_t synchronized{};
-};
 
-struct ByteCount {
-	float size{};
-	std::string_view unit{};
+	ByteCount transfer_rate{};
 };
 
 [[nodiscard]] auto to_error(Error::Type type, std::string_view message) -> std::unexpected<Error>;

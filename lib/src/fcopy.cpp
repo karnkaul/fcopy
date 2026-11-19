@@ -43,12 +43,12 @@ template <typename Type>
 }
 } // namespace
 
-void ProgressPrinter::print(CopyProgress const& progress, ByteCount const& transfer_rate) {
+void ProgressPrinter::print(Progress const& progress) {
 	if (!m_line.empty()) {
 		clear_line();
 	}
 
-	populate_line(progress, transfer_rate);
+	populate_line(progress);
 	std::print("{}", m_line);
 	if (progress.to_percent() == 100) {
 		std::println("");
@@ -62,12 +62,12 @@ void ProgressPrinter::clear_line() {
 	std::print("\r{}\r", m_line);
 }
 
-void ProgressPrinter::populate_line(CopyProgress const& progress, ByteCount const& transfer_rate) {
+void ProgressPrinter::populate_line(Progress const& progress) {
 	m_line.clear();
 	auto const percent = progress.to_percent();
 	std::format_to(std::back_inserter(m_line), "[{}%] {}", percent, m_path);
-	if (!transfer_rate.unit.empty()) {
-		std::format_to(std::back_inserter(m_line), " [{}/s]", transfer_rate);
+	if (!progress.transfer_rate.unit.empty()) {
+		std::format_to(std::back_inserter(m_line), " [{}/s]", progress.transfer_rate);
 	}
 }
 
@@ -88,23 +88,21 @@ auto TransferMeter::get_rate() const -> ByteCount {
 	return m_rate;
 }
 
-auto FileCopier::copy_file(Entry source, fs::path destination, bool const overwrite) -> Result<void> {
+auto FileCopier::copy_file(Entry source, fs::path destination) -> Result<void> {
 	if (source.type != Entry::Type::RegularFile) {
 		return to_error(Error::Type::InvalidArgument,
 						std::format("Unsupported EntryType: {}", to_string_view(source.type)));
 	}
 
-	if (!overwrite && fs::exists(destination)) {
+	if (!options.overwrite && fs::exists(destination)) {
 		return to_error(Error::Type::TargetExists, destination.generic_string());
 	}
 
 	m_source = std::move(source);
 	m_destination = std::move(destination);
-	if (!quiet) {
-		m_progress = Progress{
-			.progress = CopyProgress{.total = m_source.size},
-			.printer = ProgressPrinter{m_destination},
-		};
+	m_progress = Progress{.total = m_source.size};
+	if (!options.quiet) {
+		m_printer = ProgressPrinter{m_destination};
 	}
 
 	return copy_file();
@@ -146,9 +144,7 @@ auto FileCopier::copy_one_shot() -> Result<void> {
 		return to_error(Error::Type::FileIOFailure, m_destination.generic_string());
 	}
 
-	if (m_progress) {
-		m_transfer.update(m_source.size);
-	}
+	m_transfer.update(m_source.size);
 	set_completed();
 
 	return {};
@@ -171,8 +167,8 @@ auto FileCopier::copy_bytes() -> Result<void> {
 	m_buffer.resize(buffer_size);
 
 	for (auto remain = m_source.size; remain > 0;) {
-		if (m_progress) {
-			m_progress->printer.print(m_progress->progress, m_transfer.get_rate());
+		if (m_printer) {
+			m_printer->print(m_progress);
 		}
 
 		auto const request_size = std::min(m_buffer.size(), remain);
@@ -185,10 +181,9 @@ auto FileCopier::copy_bytes() -> Result<void> {
 
 		remain -= request_size;
 
-		if (m_progress) {
-			m_progress->progress.synchronized += request_size;
-			m_transfer.update(request_size);
-		}
+		m_progress.synchronized += request_size;
+		m_transfer.update(request_size);
+		m_progress.transfer_rate = m_transfer.get_rate();
 	}
 
 	set_completed();
@@ -196,16 +191,18 @@ auto FileCopier::copy_bytes() -> Result<void> {
 }
 
 void FileCopier::set_completed() {
-	if (m_progress) {
-		m_progress->progress.synchronized = m_progress->progress.total;
-		m_progress->printer.print(m_progress->progress, m_transfer.get_rate());
+	m_progress.synchronized = m_progress.total;
+	m_progress.transfer_rate = m_transfer.get_rate();
+
+	if (m_printer) {
+		m_printer->print(m_progress);
 	}
 
 	auto err = std::error_code{};
 	fs::permissions(m_destination, fs::status(m_source.path).permissions(), err);
 }
 
-auto Copier::copy_path(Entry source, fs::path destination, bool const overwrite) -> Result<void> {
+auto Copier::copy_path(Entry source, fs::path destination) -> Result<void> {
 	if (recursive && source.type == EntryType::Directory) {
 		destination /= source.path.filename();
 
@@ -217,7 +214,7 @@ auto Copier::copy_path(Entry source, fs::path destination, bool const overwrite)
 
 			auto const filename = fs::relative(it.path(), source.path);
 			auto file_destination = destination / filename;
-			auto result = file_copier.copy_file(std::move(*entry), std::move(file_destination), overwrite);
+			auto result = file_copier.copy_file(std::move(*entry), std::move(file_destination));
 			if (!result) {
 				return std::unexpected{std::move(result.error())};
 			}
@@ -229,6 +226,6 @@ auto Copier::copy_path(Entry source, fs::path destination, bool const overwrite)
 		destination /= source.path.filename();
 	}
 
-	return file_copier.copy_file(std::move(source), std::move(destination), overwrite);
+	return file_copier.copy_file(std::move(source), std::move(destination));
 }
 } // namespace fcopy

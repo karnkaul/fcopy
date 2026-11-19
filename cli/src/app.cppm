@@ -20,8 +20,7 @@ class App {
 		std::string_view source;
 
 		std::string_view destination{"."};
-		bool overwrite{false};
-		bool quiet{false};
+		Options options{};
 		bool recursive{false};
 	};
 
@@ -29,8 +28,8 @@ class App {
 		auto spec = clap::spec::Parameters{
 			.parameters =
 				{
-					clap::named_flag(m_params.overwrite, "o,overwrite", "overwrite existing"),
-					clap::named_flag(m_params.quiet, "q,quiet", "only output errors"),
+					clap::named_flag(m_params.options.overwrite, "o,overwrite", "overwrite existing"),
+					clap::named_flag(m_params.options.quiet, "q,quiet", "only output errors"),
 					clap::named_flag(m_params.recursive, "r,recursive", "recurse all files in source"),
 					clap::positional_required(m_params.source, "SRC", "source"),
 					clap::positional_optional(m_params.destination, "DST", "destination (default=.)"),
@@ -54,10 +53,10 @@ class App {
 
 		auto destination = fs::path(m_params.destination);
 
-		m_copier.file_copier.quiet = m_params.quiet;
+		m_copier.file_copier.options = m_params.options;
 		m_copier.recursive = m_params.recursive;
 
-		auto const result = m_copier.copy_path(std::move(*source), destination, m_params.overwrite);
+		auto const result = m_copier.copy_path(std::move(*source), destination);
 		if (!result) {
 			return handle_error(result.error());
 		}
