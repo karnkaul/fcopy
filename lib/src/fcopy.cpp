@@ -103,10 +103,6 @@ auto FileCopier::copy_file(Entry source, fs::path destination, bool const overwr
 	m_progress = CopyProgress{.total = m_source.size};
 	if (!quiet) {
 		m_print_progress = ProgressPrinter{m_destination};
-
-		if (!transfer_meter) {
-			transfer_meter = std::make_shared<TransferMeter>();
-		}
 	}
 
 	return copy_file();
@@ -147,8 +143,8 @@ auto FileCopier::copy_one_shot() -> Result<void> {
 		return to_error(Error::Type::FileIOFailure, m_destination.generic_string());
 	}
 
-	if (transfer_meter) {
-		transfer_meter->update(m_source.size);
+	if (!quiet) {
+		transfer_meter.update(m_source.size);
 	}
 	set_completed();
 
@@ -171,8 +167,8 @@ auto FileCopier::copy_bytes() -> Result<void> {
 	m_buffer.clear();
 	m_buffer.resize(buffer_size);
 
-	if (!quiet) {
-		m_print_progress->print(m_progress, transfer_meter->get_rate());
+	if (m_print_progress) {
+		m_print_progress->print(m_progress, transfer_meter.get_rate());
 	}
 
 	for (auto remain = m_source.size; remain > 0;) {
@@ -187,9 +183,9 @@ auto FileCopier::copy_bytes() -> Result<void> {
 		remain -= request_size;
 		m_progress.synchronized += request_size;
 
-		if (!quiet) {
-			transfer_meter->update(request_size);
-			m_print_progress->print(m_progress, transfer_meter->get_rate());
+		if (m_print_progress) {
+			transfer_meter.update(request_size);
+			m_print_progress->print(m_progress, transfer_meter.get_rate());
 		}
 	}
 
@@ -205,8 +201,8 @@ void FileCopier::overwrite_permissions() const {
 void FileCopier::set_completed() {
 	overwrite_permissions();
 	m_progress.synchronized = m_progress.total;
-	if (!quiet) {
-		m_print_progress->print(m_progress, transfer_meter->get_rate());
+	if (m_print_progress) {
+		m_print_progress->print(m_progress, transfer_meter.get_rate());
 	}
 }
 } // namespace fcopy
