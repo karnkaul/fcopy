@@ -46,6 +46,7 @@ struct Entry {
 
 struct Options {
 	bool overwrite{false};
+	bool recursive{false};
 	bool quiet{false};
 };
 

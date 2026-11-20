@@ -46,7 +46,7 @@ class FileCopier {
 	[[nodiscard]] auto copy_file(Entry source, fs::path destination) -> Result<void>;
 
 	std::size_t buffer_size{16 * 1024 * 1024uz};
-	std::shared_ptr<IListener> progress_listener{std::make_shared<ProgressPrinterListener>()};
+	std::shared_ptr<IListener> progress_listener{};
 	bool overwrite_existing{};
 
   private:
