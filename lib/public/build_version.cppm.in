@@ -1,0 +1,7 @@
+export module fcopy.build_version;
+
+export import std;
+
+export namespace fcopy {
+constexpr auto build_version_v = std::string_view{"@PROJECT_VERSION@"};
+} // namespace fcopy
