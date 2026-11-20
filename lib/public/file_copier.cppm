@@ -26,18 +26,27 @@ class ProgressPrinter {
 class TransferMeter {
   public:
 	void update(std::uint64_t transferred);
-	[[nodiscard]] auto get_rate() const -> ByteCount;
+	[[nodiscard]] auto get_rate() const -> ByteCount const& { return m_rate; }
 
   private:
 	using Clock = std::chrono::steady_clock;
 
-	Clock::time_point m_previous{Clock::now()};
+	Clock::time_point m_start{Clock::now()};
 	std::uint64_t m_transferred{};
 	ByteCount m_rate{};
 };
 
 class FileCopier {
   public:
+	FileCopier(FileCopier const&) = delete;
+	FileCopier& operator=(FileCopier const&) = delete;
+
+	FileCopier(FileCopier&&) noexcept = default;
+	FileCopier& operator=(FileCopier&&) noexcept = default;
+
+	FileCopier() = default;
+	virtual ~FileCopier() = default;
+
 	[[nodiscard]] static constexpr auto can_copy(EntryType const entry_type) {
 		return entry_type == EntryType::RegularFile;
 	}
@@ -48,6 +57,11 @@ class FileCopier {
 	std::size_t buffer_size{16 * 1024 * 1024uz};
 	Options options{};
 
+  protected:
+	virtual void on_file_copy_progress(Progress const& progress) { print_file_copy_progress(progress); }
+
+	void print_file_copy_progress(Progress const& progress);
+
   private:
 	[[nodiscard]] auto copy_file() -> Result<void>;
 	[[nodiscard]] auto create_empty_file() -> Result<void>;
@@ -56,8 +70,6 @@ class FileCopier {
 	[[nodiscard]] auto open_destination() -> Result<void>;
 	[[nodiscard]] auto copy_bytes() -> Result<void>;
 	void set_completed();
-
-	void print_progress() const;
 
 	Entry m_source{};
 	fs::path m_destination{};

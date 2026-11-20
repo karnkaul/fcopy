@@ -73,19 +73,13 @@ void ProgressPrinter::populate_line(Progress const& progress) {
 
 void TransferMeter::update(std::uint64_t const transferred) {
 	m_transferred += transferred;
-	auto const now = Clock::now();
-	if (now - m_previous >= 1s) {
-		m_rate = to_byte_count(m_transferred);
-		m_transferred = 0;
-		m_previous = now;
+	auto const dt = std::chrono::duration<float>(Clock::now() - m_start);
+	if (dt < 10ms) {
+		return;
 	}
-}
 
-auto TransferMeter::get_rate() const -> ByteCount {
-	if (m_rate.unit.empty()) {
-		return to_byte_count(m_transferred);
-	}
-	return m_rate;
+	auto const bytes_per_second = static_cast<float>(m_transferred) / dt.count();
+	m_rate = to_byte_count(static_cast<std::uint64_t>(bytes_per_second));
 }
 
 auto FileCopier::copy_file(fs::path source, fs::path destination) -> Result<void> {
@@ -139,6 +133,13 @@ auto FileCopier::copy_file() -> Result<void> {
 	});
 }
 
+void FileCopier::print_file_copy_progress(Progress const& progress) {
+	if (!m_printer) {
+		return;
+	}
+	m_printer->print(progress);
+}
+
 auto FileCopier::create_empty_file() -> Result<void> {
 	return open_for_write(m_destination).transform([&](std::ofstream file) {
 		file.close();
@@ -176,9 +177,7 @@ auto FileCopier::copy_bytes() -> Result<void> {
 	m_buffer.resize(buffer_size);
 
 	for (auto remain = m_source.size; remain > 0;) {
-		if (m_printer) {
-			m_printer->print(m_progress);
-		}
+		on_file_copy_progress(m_progress);
 
 		auto const request_size = std::min(m_buffer.size(), remain);
 		if (!m_in.read(m_buffer.data(), static_cast<std::streamsize>(request_size))) {
@@ -203,9 +202,7 @@ void FileCopier::set_completed() {
 	m_progress.synchronized = m_progress.total;
 	m_progress.transfer_rate = m_transfer.get_rate();
 
-	if (m_printer) {
-		m_printer->print(m_progress);
-	}
+	on_file_copy_progress(m_progress);
 
 	auto err = std::error_code{};
 	fs::permissions(m_destination, fs::status(m_source.path).permissions(), err);
