@@ -44,12 +44,6 @@ struct Entry {
 	std::uint64_t size{};
 };
 
-struct Options {
-	bool overwrite{false};
-	bool recursive{false};
-	bool quiet{false};
-};
-
 struct ByteCount {
 	float size{};
 	std::string_view unit{};
