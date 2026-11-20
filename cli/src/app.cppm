@@ -46,8 +46,24 @@ class App {
 	}
 
 	[[nodiscard]] auto execute() const -> int {
-		auto const ret = copy_path(m_params.source, m_params.destination, m_params.options);
-		return static_cast<int>(ret);
+		auto entry = to_entry(m_params.source);
+		if (!entry) {
+			return handle_error(entry.error());
+		}
+
+		if (entry->type == EntryType::Directory) {
+			if (!m_params.recursive) {
+				return handle_error(Error{
+					.type = ErrorType::InvalidArgument,
+					.message =
+						std::format("fcopy: -r not specified; omitting directory '{}'", entry->path.generic_string()),
+				});
+			}
+
+			return static_cast<int>(copy_directory(*entry, m_params.destination, m_params.options));
+		}
+
+		return static_cast<int>(copy_file(std::move(*entry), m_params.destination, m_params.options));
 	}
 
 	[[nodiscard]] static auto handle_error(Error const& error) -> int {

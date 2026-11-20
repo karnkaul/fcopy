@@ -97,6 +97,10 @@ auto FileCopier::copy_file(Entry source, fs::path destination) -> Result<void> {
 						std::format("Unsupported EntryType: {}", to_string_view(source.type)));
 	}
 
+	if (fs::is_directory(destination)) {
+		destination /= source.path.filename();
+	}
+
 	if (!overwrite_existing && fs::exists(destination)) {
 		return to_error(Error::Type::TargetExists, destination.generic_string());
 	}

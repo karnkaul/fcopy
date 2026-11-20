@@ -10,6 +10,13 @@ namespace {
 	}
 	return to_error(Error::Type::InvalidArgument, std::format("Not a directory: {}", entry.path.generic_string()));
 }
+
+[[nodiscard]] auto check_target_directory(fs::path const& path) -> Result<void> {
+	if (!fs::exists(path) || fs::is_directory(path)) {
+		return {};
+	}
+	return to_error(Error::Type::InvalidArgument, std::format("Invalid target directory: {}", path.generic_string()));
+}
 } // namespace
 } // namespace fcopy
 
@@ -31,6 +38,11 @@ auto fcopy::copy_file(Entry source, fs::path destination, Options const options)
 
 auto fcopy::copy_directory(Entry const& source, fs::path const& destination, Options const options) -> ExitCode {
 	if (auto const result = check_is_directory(source); !result) {
+		std::println(std::cerr, "{}", result.error().message);
+		return to_exit_code(result.error().type);
+	}
+
+	if (auto const result = check_target_directory(destination); !result) {
 		std::println(std::cerr, "{}", result.error().message);
 		return to_exit_code(result.error().type);
 	}
