@@ -21,10 +21,20 @@ namespace {
 	return to_error(Error::Type::InvalidArgument, std::format("Not a directory: {}", entry.path.generic_string()));
 }
 
-[[nodiscard]] auto check_target_directory(fs::path const& path) -> Result<void> {
-	if (!fs::exists(path) || fs::is_directory(path)) {
+[[nodiscard]] auto ensure_target_directory(fs::path const& path) -> Result<void> {
+	if (fs::is_directory(path)) {
 		return {};
 	}
+
+	if (!fs::exists(path)) {
+		auto err = std::error_code{};
+		if (fs::create_directories(path, err)) {
+			return {};
+		}
+
+		return to_error(Error::Type::DirectoryCreationFailure, path.generic_string());
+	}
+
 	return to_error(Error::Type::InvalidArgument, std::format("Invalid target directory: {}", path.generic_string()));
 }
 } // namespace
@@ -39,6 +49,13 @@ Agent::Agent(Options const options) : m_recursive(options.recursive) {
 auto Agent::copy_paths(std::span<fs::path const> sources, fs::path const& destination) -> ExitCode {
 	if (sources.empty()) {
 		return ExitCode::Success;
+	}
+
+	if (sources.size() > 1) {
+		auto const result = ensure_target_directory(destination);
+		if (!result) {
+			return handle_error(result.error());
+		}
 	}
 
 	auto ret = ExitCode::Success;
@@ -85,12 +102,13 @@ auto Agent::copy_directory(Entry const& source, fs::path const& destination) -> 
 		return handle_error(result.error());
 	}
 
-	if (auto const result = check_target_directory(destination); !result) {
+	auto ret = ExitCode::Success;
+	auto const destination_root = destination / source.path.filename();
+
+	if (auto const result = ensure_target_directory(destination_root); !result) {
 		return handle_error(result.error());
 	}
 
-	auto ret = ExitCode::Success;
-	auto const destination_root = destination / source.path.filename();
 	for (auto const& it : fs::recursive_directory_iterator{source.path}) {
 		auto entry = to_entry(it.path());
 		if (!entry || !FileCopier::can_copy(entry->type)) {

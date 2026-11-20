@@ -17,9 +17,8 @@ class App {
 
   private:
 	struct Params {
-		std::string_view source;
-
 		std::string_view destination{"."};
+		std::vector<std::string_view> sources{};
 		AgentOptions options{};
 	};
 
@@ -30,8 +29,8 @@ class App {
 					clap::named_flag(m_params.options.overwrite, "o,overwrite", "overwrite existing"),
 					clap::named_flag(m_params.options.quiet, "q,quiet", "only output errors"),
 					clap::named_flag(m_params.options.recursive, "r,recursive", "recurse all files in source"),
-					clap::positional_required(m_params.source, "SRC", "source"),
-					clap::positional_optional(m_params.destination, "DST", "destination (default=.)"),
+					clap::named_option(m_params.destination, "t,target", "destination (default=.)"),
+					clap::positional_list(m_params.sources, "SRC", "sources"),
 				},
 			.program =
 				{
@@ -45,8 +44,14 @@ class App {
 	}
 
 	[[nodiscard]] auto execute() const -> int {
+		auto sources = std::vector<fs::path>{};
+		sources.reserve(m_params.sources.size());
+		for (auto const source : m_params.sources) {
+			sources.emplace_back(source);
+		}
+
 		auto agent = Agent{m_params.options};
-		return static_cast<int>(agent.copy_path(m_params.source, m_params.destination));
+		return static_cast<int>(agent.copy_paths(sources, m_params.destination));
 	}
 
 	Params m_params{};
