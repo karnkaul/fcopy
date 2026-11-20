@@ -15,7 +15,10 @@ namespace {
 
 auto fcopy::copy_file(Entry source, fs::path destination, Options const options) -> ExitCode {
 	auto copier = FileCopier{};
-	copier.options = options;
+	copier.overwrite_existing = options.overwrite;
+	if (options.quiet) {
+		copier.progress_listener.reset();
+	}
 
 	auto const result = copier.copy_file(std::move(source), std::move(destination));
 	if (result) {
@@ -33,7 +36,10 @@ auto fcopy::copy_directory(Entry const& source, fs::path const& destination, Opt
 	}
 
 	auto copier = FileCopier{};
-	copier.options = options;
+	copier.overwrite_existing = options.overwrite;
+	if (options.quiet) {
+		copier.progress_listener.reset();
+	}
 
 	auto ret = ExitCode::Success;
 	auto const destination_root = destination / source.path.filename();

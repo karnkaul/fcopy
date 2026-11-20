@@ -1,6 +1,6 @@
 export module fcopy.file_copier;
 
-export import fcopy.types;
+export import fcopy.listener;
 
 export import std;
 
@@ -38,15 +38,6 @@ class TransferMeter {
 
 class FileCopier {
   public:
-	FileCopier(FileCopier const&) = delete;
-	FileCopier& operator=(FileCopier const&) = delete;
-
-	FileCopier(FileCopier&&) noexcept = default;
-	FileCopier& operator=(FileCopier&&) noexcept = default;
-
-	FileCopier() = default;
-	virtual ~FileCopier() = default;
-
 	[[nodiscard]] static constexpr auto can_copy(EntryType const entry_type) {
 		return entry_type == EntryType::RegularFile;
 	}
@@ -55,12 +46,8 @@ class FileCopier {
 	[[nodiscard]] auto copy_file(Entry source, fs::path destination) -> Result<void>;
 
 	std::size_t buffer_size{16 * 1024 * 1024uz};
-	Options options{};
-
-  protected:
-	virtual void on_file_copy_progress(Progress const& progress) { print_file_copy_progress(progress); }
-
-	void print_file_copy_progress(Progress const& progress);
+	std::shared_ptr<IListener> progress_listener{std::make_shared<ProgressPrinterListener>()};
+	bool overwrite_existing{};
 
   private:
 	[[nodiscard]] auto copy_file() -> Result<void>;
@@ -71,13 +58,15 @@ class FileCopier {
 	[[nodiscard]] auto copy_bytes() -> Result<void>;
 	void set_completed();
 
+	void dispatch_pre_copy() const;
+	void dispatch_progress() const;
+
 	Entry m_source{};
 	fs::path m_destination{};
 
 	std::ifstream m_in{};
 	std::ofstream m_out{};
 
-	std::optional<ProgressPrinter> m_printer{};
 	Progress m_progress{};
 	TransferMeter m_transfer{};
 	std::vector<char> m_buffer{};
