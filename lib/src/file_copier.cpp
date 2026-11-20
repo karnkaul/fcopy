@@ -97,22 +97,21 @@ auto FileCopier::copy_file(Entry source, fs::path destination) -> Result<void> {
 						std::format("Unsupported EntryType: {}", to_string_view(source.type)));
 	}
 
-	if (!options.overwrite && fs::exists(destination)) {
+	if (!overwrite_existing && fs::exists(destination)) {
 		return to_error(Error::Type::TargetExists, destination.generic_string());
 	}
 
 	m_source = std::move(source);
 	m_destination = std::move(destination);
 	m_progress = Progress{.total = m_source.size};
-	if (!options.quiet) {
-		m_printer = ProgressPrinter{m_destination};
-	}
 
 	return copy_file();
 }
 
 auto FileCopier::copy_file() -> Result<void> {
-	if (m_source.type == EntryType::RegularFile && m_source.size == 0) {
+	dispatch_pre_copy();
+
+	if (m_source.size == 0) {
 		return create_empty_file();
 	}
 
@@ -131,13 +130,6 @@ auto FileCopier::copy_file() -> Result<void> {
 				return copy_bytes();
 			});
 	});
-}
-
-void FileCopier::print_file_copy_progress(Progress const& progress) {
-	if (!m_printer) {
-		return;
-	}
-	m_printer->print(progress);
 }
 
 auto FileCopier::create_empty_file() -> Result<void> {
@@ -177,7 +169,7 @@ auto FileCopier::copy_bytes() -> Result<void> {
 	m_buffer.resize(buffer_size);
 
 	for (auto remain = m_source.size; remain > 0;) {
-		on_file_copy_progress(m_progress);
+		dispatch_progress();
 
 		auto const request_size = std::min(m_buffer.size(), remain);
 		if (!m_in.read(m_buffer.data(), static_cast<std::streamsize>(request_size))) {
@@ -202,9 +194,23 @@ void FileCopier::set_completed() {
 	m_progress.synchronized = m_progress.total;
 	m_progress.transfer_rate = m_transfer.get_rate();
 
-	on_file_copy_progress(m_progress);
+	dispatch_progress();
 
 	auto err = std::error_code{};
 	fs::permissions(m_destination, fs::status(m_source.path).permissions(), err);
+}
+
+void FileCopier::dispatch_pre_copy() const {
+	if (!progress_listener) {
+		return;
+	}
+	progress_listener->pre_file_copy(m_source);
+}
+
+void FileCopier::dispatch_progress() const {
+	if (!progress_listener) {
+		return;
+	}
+	progress_listener->on_file_copy_progress(m_progress);
 }
 } // namespace fcopy
