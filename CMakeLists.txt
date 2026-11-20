@@ -11,7 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_DEBUG_POSTFIX "-d")
 
 set(package_name fcopy)
-project(${package_name} VERSION 0.1.2)
+project(${package_name} VERSION 0.1.3)
 
 option(FCOPY_BUILD_CLI "Build fcopy cli" ${PROJECT_IS_TOP_LEVEL})
 option(FCOPY_INSTALL "Setup fcopy cli install" ${PROJECT_IS_TOP_LEVEL})

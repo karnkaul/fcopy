@@ -92,7 +92,7 @@ auto FileCopier::copy_file(fs::path source, fs::path destination) -> Result<void
 }
 
 auto FileCopier::copy_file(Entry source, fs::path destination) -> Result<void> {
-	if (source.type != Entry::Type::RegularFile && source.type != Entry::Type::Symlink) {
+	if (!can_copy(source.type)) {
 		return to_error(Error::Type::InvalidArgument,
 						std::format("Unsupported EntryType: {}", to_string_view(source.type)));
 	}
@@ -208,7 +208,7 @@ void FileCopier::dispatch_pre_copy() const {
 	if (!progress_listener) {
 		return;
 	}
-	progress_listener->pre_file_copy(m_source);
+	progress_listener->pre_file_copy(m_source, m_destination);
 }
 
 void FileCopier::dispatch_progress() const {
