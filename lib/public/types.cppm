@@ -12,6 +12,7 @@ enum class ErrorType : std::int8_t {
 	InvalidArgument,
 	TargetExists,
 	DirectoryCreationFailure,
+	DirectoryOpenFailure,
 	FileOpenFailure,
 	FileIOFailure,
 };

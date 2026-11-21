@@ -22,6 +22,7 @@ auto fcopy::to_string_view(ErrorType const error_type) -> std::string_view {
 	case ErrorType::InvalidArgument: return "InvalidArgument";
 	case ErrorType::TargetExists: return "TargetExists";
 	case ErrorType::DirectoryCreationFailure: return "DirectoryCreationFailure";
+	case ErrorType::DirectoryOpenFailure: return "DirectoryOpenFailure";
 	case ErrorType::FileOpenFailure: return "FileOpenFailure";
 	case ErrorType::FileIOFailure: return "FileIOFailure";
 

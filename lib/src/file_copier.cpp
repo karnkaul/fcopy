@@ -82,24 +82,28 @@ void TransferMeter::update(std::uint64_t const transferred) {
 	m_rate = to_byte_count(static_cast<std::uint64_t>(bytes_per_second));
 }
 
-auto FileCopier::copy_file(fs::path source, fs::path destination) -> Result<void> {
+auto FileCopier::copy_file(fs::path source, fs::path const& destination_directory) -> Result<void> {
 	auto entry = to_entry(std::move(source));
 	if (!entry) {
 		return std::unexpected{std::move(entry.error())};
 	}
 
-	return copy_file(std::move(*entry), std::move(destination));
+	return copy_file(std::move(*entry), destination_directory);
 }
 
-auto FileCopier::copy_file(Entry source, fs::path destination) -> Result<void> {
+auto FileCopier::copy_file(Entry source, fs::path const& destination_directory) -> Result<void> {
 	if (!can_copy(source.type)) {
-		return to_error(Error::Type::InvalidArgument,
-						std::format("Unsupported EntryType: {}", to_string_view(source.type)));
+		return to_error(
+			Error::Type::InvalidArgument,
+			std::format("Unsupported EntryType ({}): {}", to_string_view(source.type), source.path.generic_string()));
 	}
 
-	if (fs::is_directory(destination)) {
-		destination /= source.path.filename();
+	if (!fs::is_directory(destination_directory)) {
+		return to_error(Error::Type::InvalidArgument,
+						std::format("Invalid destination directory: {}", destination_directory.generic_string()));
 	}
+
+	auto destination = destination_directory / source.path.filename();
 
 	if (!overwrite_existing && fs::exists(destination)) {
 		return to_error(Error::Type::TargetExists, destination.generic_string());

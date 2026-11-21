@@ -14,13 +14,6 @@ namespace {
 	return to_exit_code(error.type);
 }
 
-[[nodiscard]] auto check_is_directory(Entry const& entry) -> Result<void> {
-	if (entry.type == Entry::Type::Directory) {
-		return {};
-	}
-	return to_error(Error::Type::InvalidArgument, std::format("Not a directory: {}", entry.path.generic_string()));
-}
-
 [[nodiscard]] auto ensure_target_directory(fs::path const& path) -> Result<void> {
 	if (fs::is_directory(path)) {
 		return {};
@@ -74,22 +67,14 @@ auto Agent::copy_path(fs::path source, fs::path const& destination) -> ExitCode 
 	}
 
 	if (entry->type == EntryType::Directory) {
-		if (!m_recursive) {
-			return handle_error(Error{
-				.type = ErrorType::InvalidArgument,
-				.message =
-					std::format("fcopy: -r not specified; omitting directory '{}'", entry->path.generic_string()),
-			});
-		}
-
 		return copy_directory(*entry, destination);
 	}
 
 	return copy_file(std::move(*entry), destination);
 }
 
-auto Agent::copy_file(Entry source, fs::path destination) -> ExitCode {
-	auto const result = m_file_copier.copy_file(std::move(source), std::move(destination));
+auto Agent::copy_file(Entry source, fs::path const& destination_directory) -> ExitCode {
+	auto const result = m_file_copier.copy_file(std::move(source), destination_directory);
 	if (!result) {
 		return handle_error(result.error());
 	}
@@ -97,27 +82,52 @@ auto Agent::copy_file(Entry source, fs::path destination) -> ExitCode {
 	return ExitCode::Success;
 }
 
-auto Agent::copy_directory(Entry const& source, fs::path const& destination) -> ExitCode {
-	if (auto const result = check_is_directory(source); !result) {
+auto Agent::copy_directory(Entry const& source, fs::path const& destination_directory) -> ExitCode {
+	if (!m_recursive) {
+		return handle_error(Error{
+			.type = ErrorType::InvalidArgument,
+			.message = std::format("fcopy: -r not specified; omitting directory '{}'", source.path.generic_string()),
+		});
+	}
+
+	m_source_root = source.path;
+	m_destination_root = destination_directory / source.path.filename();
+
+	return copy_directory_recursive({});
+}
+
+auto Agent::copy_directory_recursive(fs::path const& relative) -> ExitCode {
+	auto const destination_directory = m_destination_root / relative;
+
+	if (auto const result = ensure_target_directory(destination_directory); !result) {
 		return handle_error(result.error());
+	}
+
+	auto err = std::error_code{};
+	auto const path = m_source_root / relative;
+	auto iter = fs::directory_iterator{path, err};
+	if (iter == fs::directory_iterator{}) {
+		return handle_error(to_error(Error::Type::DirectoryOpenFailure, path.generic_string()).error());
 	}
 
 	auto ret = ExitCode::Success;
-	auto const destination_root = destination / source.path.filename();
-
-	if (auto const result = ensure_target_directory(destination_root); !result) {
-		return handle_error(result.error());
-	}
-
-	for (auto const& it : fs::recursive_directory_iterator{source.path}) {
+	for (auto const& it : iter) {
 		auto entry = to_entry(it.path());
-		if (!entry || !FileCopier::can_copy(entry->type)) {
+		if (!entry) {
 			continue;
 		}
 
-		auto const filename = fs::relative(it.path(), source.path);
-		auto file_destination = destination_root / filename;
-		auto const result = copy_file(std::move(*entry), std::move(file_destination));
+		if (entry->type == EntryType::Directory) {
+			auto const result = copy_directory_recursive(fs::relative(entry->path, m_source_root));
+			ret = prioritize(ret, result);
+			continue;
+		}
+
+		if (!FileCopier::can_copy(entry->type)) {
+			continue;
+		}
+
+		auto const result = copy_file(std::move(*entry), destination_directory);
 		ret = prioritize(ret, result);
 	}
 

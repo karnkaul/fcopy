@@ -29,7 +29,7 @@ class App {
 					clap::named_flag(m_params.options.overwrite, "o,overwrite", "overwrite existing"),
 					clap::named_flag(m_params.options.quiet, "q,quiet", "only output errors"),
 					clap::named_flag(m_params.options.recursive, "r,recursive", "recurse all files in source"),
-					clap::named_option(m_params.destination, "t,target", "destination (default=.)"),
+					clap::named_option(m_params.destination, "t,target-directory", "destination directory (default=.)"),
 					clap::positional_list(m_params.sources, "SRC", "sources"),
 				},
 			.program =
