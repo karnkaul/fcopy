@@ -14,12 +14,12 @@ namespace {
 	return to_exit_code(error.type);
 }
 
-[[nodiscard]] auto ensure_target_directory(fs::path const& path) -> Result<void> {
+[[nodiscard]] auto ensure_target_directory(fs::path const& path, bool const create) -> Result<void> {
 	if (fs::is_directory(path)) {
 		return {};
 	}
 
-	if (!fs::exists(path)) {
+	if (!fs::exists(path) && create) {
 		auto err = std::error_code{};
 		if (fs::create_directories(path, err)) {
 			return {};
@@ -30,30 +30,45 @@ namespace {
 
 	return to_error(Error::Type::InvalidArgument, std::format("Invalid target directory: {}", path.generic_string()));
 }
+
+void to_lower(std::string& out) {
+	static constexpr auto delta_v = static_cast<char>('a' - 'A');
+	for (char& c : out) {
+		if (c >= 'A' && c <= 'Z') {
+			c += delta_v;
+		}
+	}
+}
+
+[[nodiscard]] constexpr auto is_affirmative(std::string_view const lowered_input) {
+	return lowered_input == "y" || lowered_input == "yes" || lowered_input == "true" || lowered_input == "1";
+}
 } // namespace
 
-Agent::Agent(Options const options) : m_recursive(options.recursive) {
-	m_file_copier.overwrite_existing = options.overwrite;
+Agent::Agent(Options const options)
+	: m_app_name(options.app_name),
+	  m_force(options.force),
+	  m_recursive(options.recursive) {
+	m_file_copier.overwrite_existing = true;
 	if (!options.quiet) {
 		m_file_copier.progress_listener = std::make_shared<ProgressPrinterListener>();
 	}
 }
 
-auto Agent::copy_paths(std::span<fs::path const> sources, fs::path const& destination) -> ExitCode {
+auto Agent::copy_paths(std::span<fs::path const> sources, fs::path const& target_directory) -> ExitCode {
 	if (sources.empty()) {
 		return ExitCode::Success;
 	}
 
-	if (sources.size() > 1) {
-		auto const result = ensure_target_directory(destination);
-		if (!result) {
-			return handle_error(result.error());
-		}
+	auto const create_target = m_force || m_recursive;
+	auto const result = ensure_target_directory(target_directory, create_target);
+	if (!result) {
+		return handle_error(result.error());
 	}
 
 	auto ret = ExitCode::Success;
 	for (auto const& source : sources) {
-		auto const result = copy_path(source, destination);
+		auto const result = copy_path(source, target_directory);
 		ret = prioritize(ret, result);
 	}
 
@@ -73,8 +88,28 @@ auto Agent::copy_path(fs::path source, fs::path const& destination) -> ExitCode 
 	return copy_file(std::move(*entry), destination);
 }
 
-auto Agent::copy_file(Entry source, fs::path const& destination_directory) -> ExitCode {
-	auto const result = m_file_copier.copy_file(std::move(source), destination_directory);
+auto Agent::copy_file(Entry source, fs::path destination) -> ExitCode {
+	if (m_force && destination.has_parent_path()) {
+		auto const result = ensure_target_directory(destination.parent_path(), true);
+		if (!result) {
+			return handle_error(result.error());
+		}
+	}
+
+	if (fs::is_directory(destination)) {
+		destination /= source.path.filename();
+	}
+
+	if (!m_force && fs::exists(destination)) {
+		auto const exit_code = prompt_overwrite(destination);
+		m_file_copier.reset_transfer_rate();
+
+		if (exit_code != ExitCode::Success) {
+			return exit_code;
+		}
+	}
+
+	auto const result = m_file_copier.copy_file(std::move(source), std::move(destination));
 	if (!result) {
 		return handle_error(result.error());
 	}
@@ -99,7 +134,7 @@ auto Agent::copy_directory(Entry const& source, fs::path const& destination_dire
 auto Agent::copy_directory_recursive(fs::path const& relative) -> ExitCode {
 	auto const destination_directory = m_destination_root / relative;
 
-	if (auto const result = ensure_target_directory(destination_directory); !result) {
+	if (auto const result = ensure_target_directory(destination_directory, true); !result) {
 		return handle_error(result.error());
 	}
 
@@ -132,5 +167,20 @@ auto Agent::copy_directory_recursive(fs::path const& relative) -> ExitCode {
 	}
 
 	return ret;
+}
+
+auto Agent::prompt_overwrite(fs::path const& destination) const -> ExitCode {
+	std::print("{}: overwrite '{}'? ", m_app_name, destination.generic_string());
+	std::flush(std::cout);
+
+	auto response = std::string{};
+	std::getline(std::cin, response);
+	to_lower(response);
+
+	if (is_affirmative(response)) {
+		return ExitCode::Success;
+	}
+
+	return static_cast<ExitCode>(ErrorType::NegativeInteraction);
 }
 } // namespace fcopy
