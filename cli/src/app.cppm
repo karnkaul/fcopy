@@ -12,6 +12,11 @@ class App {
 			return parse_result.return_code();
 		}
 
+		if (m_params.sources.empty()) {
+			std::println(std::cerr, "fcopy: missing SRC");
+			return 1;
+		}
+
 		return execute();
 	}
 
@@ -26,11 +31,11 @@ class App {
 		auto spec = clap::spec::Parameters{
 			.parameters =
 				{
-					clap::named_flag(m_params.options.overwrite, "o,overwrite", "overwrite existing"),
+					clap::named_flag(m_params.options.force, "f,force", "overwrite existing"),
 					clap::named_flag(m_params.options.quiet, "q,quiet", "only output errors"),
 					clap::named_flag(m_params.options.recursive, "r,recursive", "recurse all files in source"),
-					clap::named_option(m_params.destination, "t,target-directory", "destination directory (default=.)"),
 					clap::positional_list(m_params.sources, "SRC", "sources"),
+					clap::positional_required(m_params.destination, "DST", "destination"),
 				},
 			.program =
 				{
@@ -39,8 +44,7 @@ class App {
 				},
 		};
 
-		auto parser = clap::Parser{std::move(spec)};
-		return parser.parse_main(argc, argv);
+		return clap::parse_main(std::move(spec), argc, argv);
 	}
 
 	[[nodiscard]] auto execute() const -> int {
@@ -51,6 +55,10 @@ class App {
 		}
 
 		auto agent = Agent{m_params.options};
+		if (sources.size() == 1) {
+			return static_cast<int>(agent.copy_path(sources.front(), m_params.destination));
+		}
+
 		return static_cast<int>(agent.copy_paths(sources, m_params.destination));
 	}
 
