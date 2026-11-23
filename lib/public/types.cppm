@@ -15,6 +15,7 @@ enum class ErrorType : std::int8_t {
 	DirectoryOpenFailure,
 	FileOpenFailure,
 	FileIOFailure,
+	NegativeInteraction,
 };
 [[nodiscard]] auto to_string_view(ErrorType error_type) -> std::string_view;
 [[nodiscard]] constexpr auto to_exit_code(ErrorType const error_type) { return static_cast<ExitCode>(error_type); }

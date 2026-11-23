@@ -25,6 +25,7 @@ auto fcopy::to_string_view(ErrorType const error_type) -> std::string_view {
 	case ErrorType::DirectoryOpenFailure: return "DirectoryOpenFailure";
 	case ErrorType::FileOpenFailure: return "FileOpenFailure";
 	case ErrorType::FileIOFailure: return "FileIOFailure";
+	case ErrorType::NegativeInteraction: return "NegativeInteraction";
 
 	case ErrorType::Unknown: break;
 	}

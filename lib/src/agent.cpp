@@ -30,10 +30,26 @@ namespace {
 
 	return to_error(Error::Type::InvalidArgument, std::format("Invalid target directory: {}", path.generic_string()));
 }
+
+void to_lower(std::string& out) {
+	static constexpr auto delta_v = static_cast<char>('a' - 'A');
+	for (char& c : out) {
+		if (c >= 'A' && c <= 'Z') {
+			c += delta_v;
+		}
+	}
+}
+
+[[nodiscard]] constexpr auto is_affirmative(std::string_view const lowered_input) {
+	return lowered_input == "y" || lowered_input == "yes" || lowered_input == "true" || lowered_input == "1";
+}
 } // namespace
 
-Agent::Agent(Options const options) : m_force(options.force), m_recursive(options.recursive) {
-	m_file_copier.overwrite_existing = m_force;
+Agent::Agent(Options const options)
+	: m_app_name(options.app_name),
+	  m_force(options.force),
+	  m_recursive(options.recursive) {
+	m_file_copier.overwrite_existing = true;
 	if (!options.quiet) {
 		m_file_copier.progress_listener = std::make_shared<ProgressPrinterListener>();
 	}
@@ -77,6 +93,19 @@ auto Agent::copy_file(Entry source, fs::path destination) -> ExitCode {
 		auto const result = ensure_target_directory(destination.parent_path(), true);
 		if (!result) {
 			return handle_error(result.error());
+		}
+	}
+
+	if (fs::is_directory(destination)) {
+		destination /= source.path.filename();
+	}
+
+	if (!m_force && fs::exists(destination)) {
+		auto const exit_code = prompt_overwrite(destination);
+		m_file_copier.reset_transfer_rate();
+
+		if (exit_code != ExitCode::Success) {
+			return exit_code;
 		}
 	}
 
@@ -138,5 +167,20 @@ auto Agent::copy_directory_recursive(fs::path const& relative) -> ExitCode {
 	}
 
 	return ret;
+}
+
+auto Agent::prompt_overwrite(fs::path const& destination) const -> ExitCode {
+	std::print("{}: overwrite '{}'? ", m_app_name, destination.generic_string());
+	std::flush(std::cout);
+
+	auto response = std::string{};
+	std::getline(std::cin, response);
+	to_lower(response);
+
+	if (is_affirmative(response)) {
+		return ExitCode::Success;
+	}
+
+	return static_cast<ExitCode>(ErrorType::NegativeInteraction);
 }
 } // namespace fcopy
