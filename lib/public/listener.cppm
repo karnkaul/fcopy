@@ -15,6 +15,7 @@ class IListener {
 
 	virtual void pre_file_copy(Entry const& source, fs::path const& destination) = 0;
 	virtual void on_file_copy_progress(Progress const& progress) = 0;
+	virtual void post_file_copy(Progress const& progress, Result<void> const& result) = 0;
 };
 
 class ProgressPrinterListener : public IListener {
@@ -24,6 +25,7 @@ class ProgressPrinterListener : public IListener {
 	}
 
 	void on_file_copy_progress(Progress const& progress) override;
+	void post_file_copy(Progress const& progress, Result<void> const& result) override;
 
   private:
 	void clear_line();

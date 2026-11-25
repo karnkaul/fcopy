@@ -5,24 +5,6 @@ export import fcopy.listener;
 export import std;
 
 export namespace fcopy {
-class ProgressPrinter {
-  public:
-	ProgressPrinter() = default;
-
-	explicit ProgressPrinter(fs::path const& path) : m_path(path.generic_string()) {}
-
-	void print(Progress const& progress);
-
-	void operator()(Progress const& progress) { print(progress); }
-
-  private:
-	void clear_line();
-	void populate_line(Progress const& progress);
-
-	std::string m_path{};
-	std::string m_line{};
-};
-
 class TransferMeter {
   public:
 	void update(std::uint64_t transferred);
@@ -62,6 +44,7 @@ class FileCopier {
 
 	void dispatch_pre_copy() const;
 	void dispatch_progress() const;
+	void dispatch_post_copy(Result<void> const& result) const;
 
 	Entry m_source{};
 	fs::path m_destination{};

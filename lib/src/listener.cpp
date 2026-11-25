@@ -8,11 +8,17 @@ void ProgressPrinterListener::on_file_copy_progress(Progress const& progress) {
 
 	populate_line(progress);
 	std::print("{}", m_line);
-	if (progress.to_percent() == 100) {
-		std::println("");
-	} else {
-		std::flush(std::cout);
+	std::flush(std::cout);
+}
+
+void ProgressPrinterListener::post_file_copy(Progress const& progress, Result<void> const& result) {
+	on_file_copy_progress(progress);
+	std::println("");
+
+	if (result) {
+		return;
 	}
+	std::println(std::cerr, "{}", result.error().message);
 }
 
 void ProgressPrinterListener::clear_line() {

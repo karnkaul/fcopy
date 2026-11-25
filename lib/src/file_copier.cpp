@@ -41,35 +41,12 @@ template <typename Type>
 		return std::move(ret);
 	});
 }
+
+void sync_permissions(fs::path const& source, fs::path const& destination) {
+	auto err = std::error_code{};
+	fs::permissions(destination, fs::status(source).permissions(), err);
+}
 } // namespace
-
-void ProgressPrinter::print(Progress const& progress) {
-	if (!m_line.empty()) {
-		clear_line();
-	}
-
-	populate_line(progress);
-	std::print("{}", m_line);
-	if (progress.to_percent() == 100) {
-		std::println("");
-	} else {
-		std::flush(std::cout);
-	}
-}
-
-void ProgressPrinter::clear_line() {
-	m_line.assign(m_line.size(), ' ');
-	std::print("\r{}\r", m_line);
-}
-
-void ProgressPrinter::populate_line(Progress const& progress) {
-	m_line.clear();
-	auto const percent = progress.to_percent();
-	std::format_to(std::back_inserter(m_line), "[{}%] {}", percent, m_path);
-	if (!progress.transfer_rate.unit.empty()) {
-		std::format_to(std::back_inserter(m_line), " [{}/s]", progress.transfer_rate);
-	}
-}
 
 void TransferMeter::update(std::uint64_t const transferred) {
 	m_transferred += transferred;
@@ -111,7 +88,10 @@ auto FileCopier::copy_file(Entry source, fs::path destination) -> Result<void> {
 	m_destination = std::move(destination);
 	m_progress = Progress{.total = m_source.size};
 
-	return copy_file();
+	auto ret = copy_file();
+	dispatch_post_copy(ret);
+
+	return ret;
 }
 
 void FileCopier::reset_transfer_rate() { m_transfer = {}; }
@@ -194,6 +174,9 @@ auto FileCopier::copy_bytes() -> Result<void> {
 		m_progress.transfer_rate = m_transfer.get_rate();
 	}
 
+	m_in.close();
+	m_out.close();
+
 	set_completed();
 	return {};
 }
@@ -204,8 +187,7 @@ void FileCopier::set_completed() {
 
 	dispatch_progress();
 
-	auto err = std::error_code{};
-	fs::permissions(m_destination, fs::status(m_source.path).permissions(), err);
+	sync_permissions(m_source.path, m_destination);
 }
 
 void FileCopier::dispatch_pre_copy() const {
@@ -220,5 +202,12 @@ void FileCopier::dispatch_progress() const {
 		return;
 	}
 	progress_listener->on_file_copy_progress(m_progress);
+}
+
+void FileCopier::dispatch_post_copy(Result<void> const& result) const {
+	if (!progress_listener) {
+		return;
+	}
+	progress_listener->post_file_copy(m_progress, result);
 }
 } // namespace fcopy
